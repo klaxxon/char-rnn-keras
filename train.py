@@ -3,10 +3,10 @@ import json
 import os
 from pathlib import Path
 import sys
-
 import numpy as np
-
 from model import build_model, save_weights, load_weights
+from keras.models import Sequential, load_model
+from keras.layers import LSTM, Dropout, TimeDistributed, Dense, Activation, Embedding
 
 DATA_DIR = './data'
 LOG_DIR = './logs'
@@ -14,6 +14,14 @@ MODEL_DIR = './model'
 
 BATCH_SIZE = 16
 SEQ_LENGTH = 64
+
+model = None
+sampmodel = None
+vocab_size = 0
+char_to_idx = None
+idx_to_char = None
+
+
 
 class TrainLogger(object):
     def __init__(self, file, resume=0):
@@ -43,7 +51,34 @@ def read_batches(T, vocab_size):
                 Y[batch_idx, i, T[batch_chars * batch_idx + start + i + 1]] = 1
         yield X, Y
 
+def sample(num_chars):
+    global sampmodel, model, char_to_idx, vocab_size
+
+    if sampmodel == None:
+        sampmodel = Sequential()
+        sampmodel.add(Embedding(vocab_size, 512, batch_input_shape=(1, 1)))
+        for i in range(3):
+            sampmodel.add(LSTM(256, return_sequences=(i != 2), stateful=True))
+            sampmodel.add(Dropout(0.2))
+
+        sampmodel.add(Dense(vocab_size))
+        sampmodel.add(Activation('softmax'))
+    sampmodel.set_weights(model.get_weights()) 
+    sampled = []
+    for i in range(num_chars):
+        batch = np.zeros((1, 1))
+        if sampled:
+            batch[0, 0] = sampled[-1]
+        else:
+            batch[0, 0] = np.random.randint(vocab_size)
+        result = sampmodel.predict_on_batch(batch).ravel()
+        sample = np.random.choice(list(range(vocab_size)), p=result)
+        sampled.append(sample)
+
+    return ''.join(idx_to_char[c] for c in sampled)
+
 def train(text, epochs=100, save_freq=10, resume=False):
+    global model, idx_to_char, vocab_size
     if resume:
         print("Attempting to resume last training...")
 
@@ -66,6 +101,7 @@ def train(text, epochs=100, save_freq=10, resume=False):
             json.dump(char_to_idx, f)
 
     vocab_size = len(char_to_idx)
+    idx_to_char = { i: ch for (ch, i) in list(char_to_idx.items()) }
     model = build_model(BATCH_SIZE, SEQ_LENGTH, vocab_size)
     model.summary()
     model.compile(loss='categorical_crossentropy',
@@ -85,6 +121,8 @@ def train(text, epochs=100, save_freq=10, resume=False):
             print('Batch {}: loss = {:.4f}, acc = {:.5f}'.format(i + 1, loss, acc))
             losses.append(loss)
             accs.append(acc)
+            if i % 10 == 0:
+                print(sample(512))
 
         log.add_entry(np.average(losses), np.average(accs))
 
@@ -109,6 +147,6 @@ if __name__ == '__main__':
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)
 
-    with open(os.path.join(DATA_DIR, args.input), 'r') as data_file:
+    with open(os.path.join(DATA_DIR, args.input), 'r', errors="ignore") as data_file:
         text = data_file.read()
     train(text, args.epochs, args.freq, args.resume)
