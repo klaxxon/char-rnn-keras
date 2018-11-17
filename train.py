@@ -121,7 +121,7 @@ def train(text, epochs=100, save_freq=10, resume=False):
             print('Batch {}: loss = {:.4f}, acc = {:.5f}'.format(i + 1, loss, acc))
             losses.append(loss)
             accs.append(acc)
-            if i % 10 == 0:
+            if (i + 1) % 10 == 0:
                 print(sample(512))
 
         log.add_entry(np.average(losses), np.average(accs))
