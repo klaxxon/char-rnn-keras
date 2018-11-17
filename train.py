@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import sys
 import numpy as np
+from timeit import default_timer as timer
 from model import build_model, save_weights, load_weights
 from keras.models import Sequential, load_model
 from keras.layers import LSTM, Dropout, TimeDistributed, Dense, Activation, Embedding
@@ -112,20 +113,22 @@ def train(text, epochs=100, save_freq=10, resume=False):
 
     T = np.asarray([char_to_idx[c] for c in text], dtype=np.int32)
     log = TrainLogger('training_log.csv', resume_epoch)
-
+     
+    start = timer()
     for epoch in range(resume_epoch, epochs):
-        print('\nEpoch {}/{}'.format(epoch + 1, epochs))
+        elapsed = timer() - start
+        start = timer()
+        print('\nEpoch {}/{}, previous epoch took %0.3fs or %0.3fms/step'.format(epoch + 1, epochs) % (elapsed, 1000.0*elapsed/(T.shape[0]/BATCH_SIZE/SEQ_LENGTH)))
         losses, accs = [], []
         for i, (X, Y) in enumerate(read_batches(T, vocab_size)):
             loss, acc = model.train_on_batch(X, Y)
-            print('Batch {}: loss = {:.4f}, acc = {:.5f}'.format(i + 1, loss, acc))
+            print('Batch {}: loss = {:.4f}, acc = {:.5f}\r'.format(i + 1, loss, acc),end =" ")
             losses.append(loss)
             accs.append(acc)
-            if (i + 1) % 10 == 0:
-                print(sample(512))
 
         log.add_entry(np.average(losses), np.average(accs))
-
+        print()
+        print(sample(512))
         if (epoch + 1) % save_freq == 0:
             save_weights(epoch + 1, model)
             print('Saved checkpoint to', 'weights.{}.h5'.format(epoch + 1))
