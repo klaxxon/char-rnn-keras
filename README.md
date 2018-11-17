@@ -1,6 +1,6 @@
 # char-rnn-keras
 
-Simply added test output every 10 epochs as the model trains.  You can change how many epochs and the number of characters on lines 124 and 125 of train.py.
+Simply added test output every 10 batches as the model trains.  You can change how many epochs and the number of characters on lines 124 and 125 of train.py.
 
 Multi-layer recurrent neural networks for training and sampling from texts, inspired by [Andrej Karpathy's article](http://karpathy.github.io/2015/05/21/rnn-effectiveness) and the original torch source code [karpathy/char-rnn](https://github.com/karpathy/char-rnn).
 
